@@ -1,21 +1,20 @@
 
-BINUTILS_HOME := /mnt/soft/bbb
+BINUTILS_HOME := $(PWD)/binutils.o
+
+BINUTILS_HOME := $(PWD)/binutils.o
+LDFLAGS := -L$(BINUTILS_HOME)/lib64 -L$(BINUTILS_HOME)/lib -lopcodes -lbfd  -lz -liberty -ldl
+CFLAGS := -I$(BINUTILS_HOME)/include -std=gnu99 -Werror
 
 CC := gcc
-# CFLAGS := -std=gnu99 -g -I$(BINUTILS_HOME)/include -I`pwd`
-# LDFLAGS += -L$(BINUTILS_HOME)/lib64 -lbfd  -liberty -ldl -lc -lz 
-CFLAGS := -std=gnu99 -g 
-LDFLAGS += -lbfd  -liberty -ldl -lc -lz -lopcodes
 
-test: patch-elf-bfd patch-elf-bfd.a
-	./patch-elf-bfd patch-elf-bfd rd --func main 31
+test: patch-elf-bfd
+	objdump -d patch-elf-bfd > patch-elf-bfd.asm
+	./patch-elf-bfd patch-elf-bfd rd --hex ......e54883ec30897ddc488975d0c745ec00000000c745f002000000837ddc 31
+	# ./patch-elf-bfd patch-elf-bfd rd --hex 554889e54883ec30897ddc488975d0c745ec00000000c745f002000000837ddc 31
+	# ./patch-elf-bfd patch-elf-bfd rd --func main 31
 
 patch-elf-bfd: patch-elf-bfd.o parse_elf_bfd.o elf-dis.o
 	$(CC) $^  $(CFLAGS) $(LDFLAGS) -o $@
-
-patch-elf-bfd.a: patch-elf-bfd.o parse_elf_bfd.o
-	$(AR) -rc $@ $^
-	objdump -d $@ > $@.asm
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $^ -o $@

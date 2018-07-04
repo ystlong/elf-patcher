@@ -1,8 +1,8 @@
 /*
 * @Author: ystlong
 * @Date:   2018-06-11 19:13:04
-* @Last Modified by:   ystlong
-* @Last Modified time: 2018-07-01 11:35:44
+* @Last Modified by:   slp
+* @Last Modified time: 2018-07-02 08:58:52
 
 */
 #include <stdio.h>
@@ -13,6 +13,7 @@
 #include "bfd.h"
 #include "dis-asm.h"
 #include "elf-dis.h"
+#include "disassemble.h"
 
 typedef struct {
 	disassemble_info dis_info;

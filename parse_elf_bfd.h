@@ -18,6 +18,7 @@ void info_asymbol(asymbol *symbol);
 
 
 #define _(msg) "%s:%d " msg, __FILE__, __LINE__
-#define debug(msg) printf(_(msg))
+#define _l() printf("%s:%d ", __FILE__, __LINE__)
+#define debug(args...) _l();printf(args)
 
 #endif

@@ -1,8 +1,8 @@
 /*
 * @Author: ystlong
 * @Date:   2018-06-30 16:23:39
-* @Last Modified by:   ystlong
-* @Last Modified time: 2018-07-01 01:42:25
+* @Last Modified by:   slp
+* @Last Modified time: 2018-07-02 10:04:04
 */
 
 #include <stdio.h>
@@ -188,8 +188,8 @@ static void parse_object_bfd(bfd *abfd, parse_info_t *parse_info) {
 
 static void parse_any_bfd(bfd *abfd, int level, parse_info_t *parse_info) {
   char **matching;
-  if (bfd_check_format_matches(abfd, bfd_archive, &matching)) {
-    // if (bfd_check_format(abfd, bfd_archive)) {
+  // if (bfd_check_format_matches(abfd, bfd_archive, &matching)) {
+  if (bfd_check_format(abfd, bfd_archive)) {
     bfd *arfile = NULL;
     bfd *last_arfile = NULL;
     if (level == 0) {
@@ -231,6 +231,7 @@ static void parse_any_bfd(bfd *abfd, int level, parse_info_t *parse_info) {
 int parse_elf(const char *filename, parse_info_t *parse_info) {
   bfd *abfd = NULL;
   bfd_init();
+  bfd_set_default_target("elf64-x86-64");
   if (parse_info == NULL) {
     printf(_("please set parse_info\n"));
     return 2;
@@ -241,6 +242,8 @@ int parse_elf(const char *filename, parse_info_t *parse_info) {
     nonfatal("open file error");
     return 1;
   }
+  // printf("%s\n", abfd->xvec->name);
+  // return 0;
   parse_any_bfd(abfd, 0, parse_info);
 }
 

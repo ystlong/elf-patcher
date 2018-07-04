@@ -1,8 +1,8 @@
 /*
 * @Author: ystlong
 * @Date:   2018-06-30 16:57:28
-* @Last Modified by:   ystlong
-* @Last Modified time: 2018-07-01 13:54:46
+* @Last Modified by:   slp
+* @Last Modified time: 2018-07-03 12:51:15
 */
 
 #include <assert.h>
@@ -32,6 +32,7 @@ typedef struct option {
 #define OPT_ADDR 1
 #define OPT_FUNC 2
 #define OPT_KEY 3
+#define OPT_HEX 4
   union {
     const char *func_name;
     unsigned long addr_value;
@@ -190,6 +191,97 @@ static void parse_section_file_offset(asection *section, option_t *option) {
   printf("\n");
 }
 
+// bytes_in_buf_inx = simple_buf_byte_mask_find(buf_find_pos, buf_find_len, option);
+static int simple_buf_byte_mask_find(const uint8_t *src, size_t src_len, option_t *option)
+{
+  const uint8_t *src_start = src;
+  const uint8_t *src_last=src;
+  const uint8_t *sub_start = option->target.key.val;
+  const uint8_t *sub = sub_start;
+  const uint8_t *mask_start = option->target.key.mask;
+  const uint8_t *mask = mask_start;
+  int sub_len = option->target.key.len;
+
+  while(((sub - sub_start) < sub_len) && ((src - src_start) < src_len)) {
+    if(*mask || *src == *sub){
+      // 该位mask为1时忽略，恒成立
+      mask++;
+      src++;
+      sub++;
+    }else{
+      sub = sub_start;
+      mask = mask_start;
+      src = src_last+1;
+      src_last = src;
+    }
+  }
+  if((sub - sub_start) == sub_len){
+    // find sub byte in src byte
+    return ((src - src_start) - sub_len);
+  }
+  // not find sub byte in src byte
+  return -1;
+}
+
+#define MAX_READ_BUF_LEN 1024
+static void find_hex_section(asection *section, option_t *option)
+{
+  long cur_offset = 0;
+  bfd_size_type count = 0;
+  uint8_t read_buf[MAX_READ_BUF_LEN];
+  uint8_t *buf_find_pos;
+  int res_buf_len = 0;
+  int read_len = 0;
+
+  count = section->size - cur_offset;
+  count = count > MAX_READ_BUF_LEN ? MAX_READ_BUF_LEN: count;
+  while(bfd_get_section_contents(section->owner, section, read_buf+res_buf_len, cur_offset, count)){
+    // debug("============\n");
+    // read section data data
+    read_len = count;
+    // debug("read_len: %d, %d, off:%ld\n", count, res_buf_len, cur_offset);
+    int buf_find_len = read_len+res_buf_len;
+    buf_find_pos = read_buf;
+    while(buf_find_len>0){
+      // debug("read_buf: %p, %p, buf_find_len: %d\n", read_buf, buf_find_pos, buf_find_len);
+
+      int bytes_in_buf_inx = simple_buf_byte_mask_find(buf_find_pos, buf_find_len, option);
+      if(bytes_in_buf_inx < 0) {
+        // 当前buf已经查找完
+        break;
+      }
+      // bytes_in_buf_inx -= res_buf_len;
+      // debug("===bytes_in_buf_inx: %d\n", bytes_in_buf_inx);
+      // 查找到一个位置在buf中的bytes_in_buf_inx处
+      // 但buf第一次没有查找到时， 需要减去滑动保留的大小
+      long section_offset = bytes_in_buf_inx + cur_offset - res_buf_len;
+      bfd_vma addr = section->vma + section_offset;
+      long in_file_offset = section->filepos + section->owner->origin + section_offset;
+      add_new_offset(option, in_file_offset, addr, section->owner);
+      long next_find_inx = bytes_in_buf_inx + option->target.key.len;
+      // debug("section_offset: %x, addr: %x, in_file_offset: %x\n", section_offset, addr, in_file_offset);
+      buf_find_pos += next_find_inx;
+      buf_find_len -= next_find_inx;
+    }
+    if(res_buf_len == 0) {
+      res_buf_len = option->target.key.len;
+      memcpy(read_buf, read_buf+read_len-res_buf_len, res_buf_len);
+    }
+    else{
+      memcpy(read_buf, read_buf+read_len, res_buf_len);   
+    }
+    cur_offset += read_len;
+    count = MAX_READ_BUF_LEN-res_buf_len;
+    if (count > section->size-cur_offset){
+      count = section->size - cur_offset;
+    }
+    // count = section->size - cur_offset;
+    // count = count > MAX_READ_BUF_LEN ? MAX_READ_BUF_LEN: count;
+    // debug("off: %ld, %ld, %ld\n", cur_offset, count, section->size);
+    if(cur_offset >= section->size) break;
+  }
+}
+
 // reloacte段可能出现错误地址， 有可能一个地址在多个section中，
 // 需要在上层过滤只保留代码段，还没做
 static void process_section(asection *section) {
@@ -208,6 +300,9 @@ static void process_section(asection *section) {
       }
       // if (options[i]->file_offset < 0) section_finish = 0;
       // }
+    }else if(options[i]->type == OPT_HEX) {
+      // find section
+      find_hex_section(section, options[i]);
     }
   }
 }
@@ -244,6 +339,7 @@ static option_t *new_opts(int type, const char *target, const char *value) {
       opt->target.addr_value = strtoul(target, NULL, 16);
       printf("input addr: 0x%x\n", opt->target.addr_value);
       break;
+    case OPT_HEX:
     case OPT_KEY: {
       int len = strlen(target);
       if (len % 2 != 0) {
@@ -303,11 +399,11 @@ static void read_find_val(const char *filename) {
       out_file = 1;
     }
     // printf("offset len: %d, ", options[i]->offset_len);
-    printf("read %s:\n", options[i]->org_target);
+    printf("read target %6s: %s\n", "", options[i]->org_target);
     uint8_t buf[MAX_READ_LEN];
     while (opt_off) {
       printf("FKEY: ");
-      printf("%x: ", opt_off->addr);
+      printf("%12x: ", opt_off->addr);
       fseek(file, opt_off->val, SEEK_SET);
       fread(buf, 1, buf_read_len, file);
       print_byte(buf, buf_read_len);
@@ -408,7 +504,8 @@ int main(int argc, char const *argv[]) {
         "usage: %s elf_path [r|w|rd|wd] "
         "[--func func_name replace_hex_bytes] "
         "[--addr hex_addr replace_hex_bytes] "
-        "[--key hex_key_val replace_hex_bytes]\n"
+        "[--key hex_key_val replace_hex_bytes]"
+        "[--hex find_hex_byte replace_hex_bytes]\n"
         "    r       : only read func_name or hex_addr hex byte\n"
         "    w       : will write replace_hex_bytes to elf_path file\n"
         "    rd|wd   : will disassemble read buf\n"
@@ -454,13 +551,15 @@ int main(int argc, char const *argv[]) {
         new_opts(OPT_ADDR, argv[pos_inx + 1], argv[pos_inx + 2]);
       } else if (strcmp(st, "--key") == 0) {
         // printf("%s\n", argv[pos_inx+1]);
-        new_opts(OPT_KEY, argv[pos_inx + 1], argv[pos_inx + 2]);
+        new_opts(OPT_KEY, argv[pos_inx + 1], argv[pos_inx + 2]);} 
+      else if (strcmp(st, "--hex") == 0) {
+        // printf("%s\n", argv[pos_inx+1]);
+        new_opts(OPT_HEX, argv[pos_inx + 1], argv[pos_inx + 2]);
       } else {
         goto usage;
       }
     }
   }
-
   parse_file(filename);
   read_find_val(filename);
   if (write && option_count > 0) {
