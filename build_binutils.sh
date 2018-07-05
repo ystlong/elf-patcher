@@ -1,7 +1,7 @@
 # @Author: slp
 # @Date:   2018-06-12 10:54:55
 # @Last Modified by:   ystlong
-# @Last Modified time: 2018-07-04 17:31:44
+# @Last Modified time: 2018-07-04 17:38:25
 
 get_script_real_file()
 {
@@ -43,7 +43,7 @@ rm -rf tmp
 set -e
 mkdir -p tmp
 cd tmp
-if [ ! -e binutils-2.30.tar.gz ]; then
+if [ ! -e binutils-2.30.tar.xz ]; then
 	wget https://ftp.gnu.org/gnu/binutils/binutils-2.30.tar.xz
 fi
 tar -xf binutils-2.30.tar.xz
