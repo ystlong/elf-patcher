@@ -7,17 +7,27 @@ CFLAGS := -I$(BINUTILS_HOME)/include -std=gnu99 -Werror
 
 CC := gcc
 
-test: patch-elf-bfd
-	objdump -d patch-elf-bfd > patch-elf-bfd.asm
-	./patch-elf-bfd patch-elf-bfd rd --hex ......e54883ec30897ddc488975d0c745ec00000000c745f002000000837ddc 31
-	# ./patch-elf-bfd patch-elf-bfd rd --hex 554889e54883ec30897ddc488975d0c745ec00000000c745f002000000837ddc 31
-	# ./patch-elf-bfd patch-elf-bfd rd --func main 31
+
+build: $(BINUTILS_HOME) patch-elf-bfd
+	echo "build finish"
 
 patch-elf-bfd: patch-elf-bfd.o parse_elf_bfd.o elf-dis.o
 	$(CC) $^  $(CFLAGS) $(LDFLAGS) -o $@
 
+$(BINUTILS_HOME):
+	sh ./build_binutils.sh
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c $^ -o $@
+	
+test: patch-elf-bfd
+	./patch-elf-bfd patch-elf-bfd rd --hex 85c0740f8b059a97420083 31
+	./patch-elf-bfd patch-elf-bfd rd --func main 31
+	./patch-elf-bfd patch-elf-bfd rd --key 554889e54883ec30897d 31
+	./patch-elf-bfd patch-elf-bfd rd --addr 40c3ba 31
+	./patch-elf-bfd patch-elf-bfd rd --addr 40c3ba 31 --func main 31
+
+
 
 clean:
 	rm *.o patch-elf-bfd *.asm *.a
