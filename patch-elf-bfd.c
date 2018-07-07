@@ -1,15 +1,16 @@
 /*
 * @Author: ystlong
 * @Date:   2018-06-30 16:57:28
-* @Last Modified by:   slp
-* @Last Modified time: 2018-07-03 12:51:15
+* @Last Modified by:   ystlong
+* @Last Modified time: 2018-07-07 19:03:47
 */
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-// #include <inttype.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include "elf-dis.h"
 #include "parse_elf_bfd.h"
 
@@ -27,12 +28,13 @@ struct opt_offset {
   struct opt_offset *next;
 };
 
-typedef struct option {
-  int type;
+// option type define
 #define OPT_ADDR 1
 #define OPT_FUNC 2
 #define OPT_KEY 3
 #define OPT_HEX 4
+typedef struct option {
+  int type;
   union {
     const char *func_name;
     unsigned long addr_value;
@@ -226,12 +228,12 @@ static int simple_buf_byte_mask_find(const uint8_t *src, size_t src_len, option_
 #define MAX_READ_BUF_LEN 1024
 static void find_hex_section(asection *section, option_t *option)
 {
-  long cur_offset = 0;
-  bfd_size_type count = 0;
-  uint8_t read_buf[MAX_READ_BUF_LEN];
+  long cur_offset = 0;                  // 读取section数据到read_buf+res_buf_len中的偏移量
+  bfd_size_type count = 0;              // 每次读取到read_buf+res_buf_len中的字节数
+  uint8_t read_buf[MAX_READ_BUF_LEN];   // section数据读取buf
   uint8_t *buf_find_pos;
   int res_buf_len = 0;
-  int read_len = 0;
+  int read_len = 0;                     // 实际读取到的字节数
 
   count = section->size - cur_offset;
   count = count > MAX_READ_BUF_LEN ? MAX_READ_BUF_LEN: count;
@@ -250,11 +252,11 @@ static void find_hex_section(asection *section, option_t *option)
         // 当前buf已经查找完
         break;
       }
-      // bytes_in_buf_inx -= res_buf_len;
       // debug("===bytes_in_buf_inx: %d\n", bytes_in_buf_inx);
-      // 查找到一个位置在buf中的bytes_in_buf_inx处
-      // 但buf第一次没有查找到时， 需要减去滑动保留的大小
-      long section_offset = bytes_in_buf_inx + cur_offset - res_buf_len;
+      // 查找到一个位置在当前查询buf中的bytes_in_buf_inx处
+      // 但buf第一次没有查找到时， 需要减去滑动保留的大小, res_buf_len
+      // 在同一个buf中找到多个位置，那么第二个位置应该加上buf开始查找的偏移量(buf_find_pos - read_buf)
+      long section_offset = bytes_in_buf_inx + cur_offset - res_buf_len + (buf_find_pos - read_buf);
       bfd_vma addr = section->vma + section_offset;
       long in_file_offset = section->filepos + section->owner->origin + section_offset;
       add_new_offset(option, in_file_offset, addr, section->owner);
@@ -275,8 +277,6 @@ static void find_hex_section(asection *section, option_t *option)
     if (count > section->size-cur_offset){
       count = section->size - cur_offset;
     }
-    // count = section->size - cur_offset;
-    // count = count > MAX_READ_BUF_LEN ? MAX_READ_BUF_LEN: count;
     // debug("off: %ld, %ld, %ld\n", cur_offset, count, section->size);
     if(cur_offset >= section->size) break;
   }
@@ -417,11 +417,6 @@ static void read_find_val(const char *filename) {
   }
   fclose(file);
 }
-
-#include <fcntl.h>
-#include <unistd.h>
-
-int access(const char *pathname, int mode);
 
 static int back_org_file(const char *filename) {
   char buf[1024];

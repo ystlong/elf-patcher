@@ -9,7 +9,7 @@ CC := gcc
 
 
 build: $(BINUTILS_HOME) patch-elf-bfd
-	echo "build finish"
+	@echo "******build finish********"
 
 patch-elf-bfd: patch-elf-bfd.o parse_elf_bfd.o elf-dis.o
 	$(CC) $^  $(CFLAGS) $(LDFLAGS) -o $@
